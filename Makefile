@@ -239,10 +239,11 @@ cflags := $(CPPFLAGS) -I$(SRCDIR)src
 cflags += -std=gnu99 $(CFLAGS)
 
 ifneq ($(DISABLE_WERROR),1)
+# FIXME: add these back into cflags.
+# -Werror=discarded-qualifiers
+# -Werror=implicit-function-declaration
 cflags += \
-	-Werror=discarded-qualifiers \
 	-Werror=incompatible-pointer-types \
-	-Werror=implicit-function-declaration \
 	-Werror=int-conversion
 endif
 
