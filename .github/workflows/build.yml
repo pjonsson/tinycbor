@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   TinyCBOR:
-    timeout-minutes: 45
+    timeout-minutes: 120
     # Common environment variables
     env:
       HOMEBREW_NO_INSTALL_CLEANUP: 1
@@ -30,7 +30,7 @@ jobs:
           { "name": "gcc-no-math",
             "flags":
               '{ "QMAKESPEC": "linux-gcc-no-math",
-                 "EVAL": "CXX=false && touch src/math.h src/float.h",
+                 "EVAL": "export CXX=false && touch src/math.h src/float.h",
                  "CFLAGS": "-ffreestanding -DCBOR_NO_FLOATING_POINT -Os",
                  "LDFLAGS": "-Wl,--no-undefined",
                  "LDLIBS": ""
@@ -39,7 +39,7 @@ jobs:
           { "name": "gcc-freestanding",
             "flags":
               '{ "QMAKESPEC": "linux-gcc-freestanding",
-                 "EVAL": "CXX=false",
+                 "EVAL": "export CXX=false",
                  "CFLAGS": "-ffreestanding -Os",
                  "LDFLAGS": "-Wl,--no-undefined -lm"
               }',
@@ -47,7 +47,7 @@ jobs:
           { "name": "clang",
             "flags":
               '{ "QMAKESPEC": "linux-clang",
-                 "EVAL": "CC=clang && CXX=clang++",
+                 "EVAL": "export CC=clang && export CXX=clang++",
                  "CFLAGS": "-Oz",
                  "LDFLAGS": "-Wl,--no-undefined -lm",
                  "QMAKEFLAGS": "-config release",
@@ -58,7 +58,7 @@ jobs:
           { "name": "linux-g++",
             "flags":
               '{ "QMAKESPEC": "linux-g++",
-                 "EVAL": "CC=gcc && CXX=g++",
+                 "EVAL": "export CC=gcc && export CXX=g++",
                  "CFLAGS": "-Os",
                  "LDFLAGS": "-Wl,--no-undefined -lm",
                  "QMAKEFLAGS": "-config release",
@@ -90,11 +90,13 @@ jobs:
     - name: install Linux software
       if: matrix.os == 'ubuntu-latest'
       run: |
+        # Need a recent Valgrind, otherwise debug info cannot be read.
         sudo snap install valgrind --classic
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           doxygen \
           jq \
+          libc6-dbg \
           libcjson-dev \
           libfuntools-dev \
           qtbase5-dev
@@ -134,11 +136,12 @@ jobs:
 
     - name: Execute tests
       run: |
-        export CFLAGS="$CFLAGS -Wno-error=implicit-function-declaration"
         set -x
         PATH=`echo /opt/qt*/bin`:$PATH
         eval $(echo '${{ matrix.build_cfg.flags }}' | jq -r 'to_entries[] | "\(.key)=\"\(.value)\""')
         eval "$EVAL"
+        # FIXME: remove -Wno-error-line below.
+        export CFLAGS="$CFLAGS -Wno-error=implicit-function-declaration"
         make OUT=.config -s -f Makefile.configure configure | tee .config
         make -k \
             CFLAGS="$CFLAGS -march=native -g1 -Wall -Wextra -Werror" \
