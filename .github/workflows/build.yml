@@ -35,16 +35,16 @@ jobs:
           }',
           }
         ]
-        #include:
-        #  - os: macos-latest
-        #    build_cfg: {
-        #        "QMAKESPEC": "macx-clang",
-        #        "CFLAGS": "-Oz",
-        #        "QMAKEFLAGS": "-config debug",
-        #        "MAKEFLAGS": "-s",
-        #       "TESTARGS": "-silent",
-        #        "PATH": "/usr/local/opt/qt5/bin:$PATH",
-        #}
+        include:
+          - os: macos-latest
+            build_cfg: {"flags":
+              '{ "QMAKESPEC": "macx-clang",
+                 "CFLAGS": "-Oz",
+                 "QMAKEFLAGS": "-config debug",
+                 "MAKEFLAGS": "-s",
+                 "TESTARGS": "-silent",
+                 "PATH": "/usr/local/opt/qt5/bin:$PATH",
+                }'}
 
     # Default job name is too long to be visible in the "Checks" tab.
     name: ${{ matrix.os }}/${{ matrix.build_cfg }}
