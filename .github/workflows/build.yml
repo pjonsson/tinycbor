@@ -26,13 +26,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        build_cfg: [
-          { "QMAKESPEC": "linux-gcc-no-math",
+        build_cfg: [{"flags":
+          '{ "QMAKESPEC": "linux-gcc-no-math",
             "EVAL": "CXX=false && touch src/math.h src/float.h",
             "CFLAGS": "-ffreestanding -DCBOR_NO_FLOATING_POINT -Os",
             "LDFLAGS": "-Wl,--no-undefined",
-            "LDLIBS": "",
-          },
+            "LDLIBS": ""
+          }',
+          }
         ]
         #include:
         #  - os: macos-latest
@@ -60,8 +61,10 @@ jobs:
         sudo apt-get install -y --no-install-recommends \
           doxygen \
           jq \
+          libfuntools-dev \
           libqt5core5a \
-          valgrind
+          valgrind \
+          qt5-qmake-bin
 
     - name: install macOS software
       if: matrix.os == 'macos-latest'
@@ -98,10 +101,12 @@ jobs:
 
     - name: Execute tests
       run: |
+        set -x
         PATH=`echo /opt/qt*/bin`:$PATH
-        eval $(echo '${{ matrix.build_cfg }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"')
+        export PATH=/usr/lib/qt5/bin:$PATH
+        eval $(echo '${{ matrix.build_cfg.flags }}' | jq -r 'to_entries[] | "\(.key)=\"\(.value)\""')
         eval "$EVAL"
-        make -s -f Makefile.configure configure | tee .config
+        make OUT=outfile.txt -s -f Makefile.configure configure | tee .config
         make -k \
             CFLAGS="$CFLAGS -march=native -g1 -Wall -Wextra -Werror" \
             CPPFLAGS="-DNDEBUG -DCBOR_ENCODER_WRITER_CONTROL=-1 -DCBOR_PARSER_READER_CONTROL=-1" \
