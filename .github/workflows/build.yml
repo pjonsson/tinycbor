@@ -90,13 +90,13 @@ jobs:
     - name: install Linux software
       if: matrix.os == 'ubuntu-latest'
       run: |
+        sudo snap install valgrind --classic
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           doxygen \
           jq \
           libcjson-dev \
           libfuntools-dev \
-          valgrind \
           qtbase5-dev
 
     - name: install macOS software
