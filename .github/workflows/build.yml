@@ -27,11 +27,23 @@ jobs:
       matrix:
         os: [ ubuntu-latest ]
         build_cfg: [
-         'export QMAKESPEC=linux-gcc-no-math && export EVAL="CXX=false && touch src/math.h src/float.h" && export CFLAGS="-ffreestanding -DCBOR_NO_FLOATING_POINT -Os" && export LDFLAGS="-Wl,--no-undefined" && export LDLIBS=""',
+          { "QMAKESPEC": "linux-gcc-no-math",
+            "EVAL": "CXX=false && touch src/math.h src/float.h",
+            "CFLAGS": "-ffreestanding -DCBOR_NO_FLOATING_POINT -Os",
+            "LDFLAGS": "-Wl,--no-undefined",
+            "LDLIBS": "",
+	  },
         ]
         include:
           - os: macos-latest
-            build_cfg: 'export QMAKESPEC=macx-clang && export CFLAGS="-Oz" && export QMAKEFLAGS="-config debug" && export MAKEFLAGS=-s && export TESTARGS=-silent && export PATH=/usr/local/opt/qt5/bin:$PATH"'
+            build_cfg: {
+                "QMAKESPEC": "macx-clang",
+                "CFLAGS": "-Oz",
+                "QMAKEFLAGS": "-config debug",
+                "MAKEFLAGS": "-s",
+                "TESTARGS": "-silent",
+                "PATH": "/usr/local/opt/qt5/bin:$PATH",
+	      }
 
     # Default job name is too long to be visible in the "Checks" tab.
     name: ${{ matrix.os }}/${{ matrix.build_cfg }}
@@ -41,12 +53,13 @@ jobs:
     - name: Clone tinycbor
       uses: actions/checkout@v4
 
-    - name: install Linuxq software
+    - name: install Linux software
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           doxygen \
+	  jq \
           libqt5core5a \
           valgrind
 
@@ -57,7 +70,7 @@ jobs:
         wget https://raw.githubusercontent.com/Homebrew/homebrew-core/41828ee36b96e35b63b2a4c8cfc2df2c3728944a/Formula/doxygen.rb
         brew install doxygen.rb
         rm doxygen.rb
-        brew install qt5
+        brew install jq qt5
 
     # Valgrind takes a long time to build, so put in a separate step
     # to make it easy to disable.
@@ -80,13 +93,13 @@ jobs:
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.10
       with:
-        key: compilation-${{ matrix.os }}-${{ matrix.build_cfg }}
+        key: compilation-${{ matrix.os }}-${{ matrix.build_cfg.QMAKESPEC }}
         max-size: 160M
 
     - name: Execute tests
       run: |
         PATH=`echo /opt/qt*/bin`:$PATH
-        eval $(echo {{ matrix.build_cfg }})
+        eval $(echo '${{ matrix.build_cfg }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"')
         eval "$EVAL"
         make -s -f Makefile.configure configure | tee .config
         make -k \
