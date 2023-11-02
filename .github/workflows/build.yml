@@ -137,7 +137,7 @@ jobs:
         PATH=`echo /opt/qt*/bin`:$PATH
         eval $(echo '${{ matrix.build_cfg.flags }}' | jq -r 'to_entries[] | "\(.key)=\"\(.value)\""')
         eval "$EVAL"
-        make OUT=outfile.txt -s -f Makefile.configure configure | tee .config
+        make OUT=.config -s -f Makefile.configure configure | tee .config
         make -k \
             CFLAGS="$CFLAGS -march=native -g1 -Wall -Wextra -Werror" \
             CPPFLAGS="-DNDEBUG -DCBOR_ENCODER_WRITER_CONTROL=-1 -DCBOR_PARSER_READER_CONTROL=-1" \
