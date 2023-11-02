@@ -134,6 +134,7 @@ jobs:
 
     - name: Execute tests
       run: |
+        export CFLAGS="$CFLAGS -Wno-error=implicit-function-declaration"
         set -x
         PATH=`echo /opt/qt*/bin`:$PATH
         eval $(echo '${{ matrix.build_cfg.flags }}' | jq -r 'to_entries[] | "\(.key)=\"\(.value)\""')
