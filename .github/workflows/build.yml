@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main, ci-test ]
+
+
+# When a PR is updated, cancel the jobs from the previous version. Merges
+# do not define head_ref, so use run_id to never cancel those jobs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  Contiki-NG:
+    timeout-minutes: 45
+    # Common environment variables
+    env:
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+      HOMEBREW_NO_ANALYTICS: 1
+
+    strategy:
+      # Always run all jobs in the matrix, even if one fails.
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest ]
+        build_cfg: [
+         'export QMAKESPEC=linux-gcc-no-math && export EVAL="CXX=false && touch src/math.h src/float.h" && export CFLAGS="-ffreestanding -DCBOR_NO_FLOATING_POINT -Os" && export LDFLAGS="-Wl,--no-undefined" && export LDLIBS=""',
+        ]
+        include:
+          - os: macos-latest
+            build_cfg: 'export QMAKESPEC=macx-clang && export CFLAGS="-Oz" && export QMAKEFLAGS="-config debug" && export MAKEFLAGS=-s && export TESTARGS=-silent && export PATH=/usr/local/opt/qt5/bin:$PATH"'
+
+    # Default job name is too long to be visible in the "Checks" tab.
+    name: ${{ matrix.os }}/${{ matrix.build_cfg }}
+    # The type of runner that the job will run on
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Clone tinycbor
+      uses: actions/checkout@v4
+
+    - name: install Linuxq software
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          doxygen \
+          libqt5core5a \
+          valgrind
+
+    - name: install macOS software
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Doxygen 1.9.7 is broken with ifdefs again, install 1.9.4 which works.
+        wget https://raw.githubusercontent.com/Homebrew/homebrew-core/41828ee36b96e35b63b2a4c8cfc2df2c3728944a/Formula/doxygen.rb
+        brew install doxygen.rb
+        rm doxygen.rb
+        brew install qt5
+
+    # Valgrind takes a long time to build, so put in a separate step
+    # to make it easy to disable.
+    - name: install macOS valgrind
+      if: matrix.os == 'macos-latest'
+      run: |
+        # 3 cores on CI runners, so use make -j6 for homebrew.
+        export HOMEBREW_MAKE_JOBS=6
+        brew tap LouisBrunner/valgrind
+        brew install --HEAD LouisBrunner/valgrind/valgrind
+
+    # Install in /usr/bin so the ccache action gets the expected environment.
+    - name: install ccache
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        wget -nv https://github.com/ccache/ccache/releases/download/v4.8.3/ccache-4.8.3-linux-x86_64.tar.xz
+        sudo tar xf ccache-4.8.3-linux-x86_64.tar.xz -C /usr/bin --strip-components=1 --no-same-owner ccache-4.8.3-linux-x86_64/ccache
+        rm -f ccache-*-linux-x86_64.tar.xz
+
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.10
+      with:
+        key: compilation-${{ matrix.os }}-${{ matrix.build_cfg }}
+        max-size: 160M
+
+    - name: Execute tests
+      run: |
+        PATH=`echo /opt/qt*/bin`:$PATH
+        eval $(echo {{ matrix.build_cfg }})
+        eval "$EVAL"
+        make -s -f Makefile.configure configure | tee .config
+        make -k \
+            CFLAGS="$CFLAGS -march=native -g1 -Wall -Wextra -Werror" \
+            CPPFLAGS="-DNDEBUG -DCBOR_ENCODER_WRITER_CONTROL=-1 -DCBOR_PARSER_READER_CONTROL=-1" \
+            lib/libtinycbor.a
+        size lib/libtinycbor.a | tee sizes
+        make -s clean
+        make -k \
+            CFLAGS="$CFLAGS -O0 -g" \
+            LDFLAGS="$LDFLAGS" ${LDLIBS+LDLIBS="$LDLIBS"}
+        grep -q freestanding-pass .config || make \
+            QMAKEFLAGS="$QMAKEFLAGS QMAKE_CXX=$CXX" \
+            tests/Makefile
+        grep -q freestanding-pass .config || \
+            (cd tests && make TESTARGS=-silent check -k \
+            TESTRUNNER=`which valgrind 2>/dev/null`)
+        make -s clean
+        ! [ $BUILD_DOCS ] || ./scripts/update-docs.sh
