@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  Contiki-NG:
+  TinyCBOR:
     timeout-minutes: 45
     # Common environment variables
     env:
@@ -48,7 +48,7 @@ jobs:
             "flags":
               '{ "QMAKESPEC": "linux-clang",
                  "EVAL": "CC=clang && CXX=clang++",
-                 "CFLAGS": "-Os",
+                 "CFLAGS": "-Oz",
                  "LDFLAGS": "-Wl,--no-undefined -lm",
                  "QMAKEFLAGS": "-config release",
                  "MAKEFLAGS": "-s",
@@ -67,8 +67,8 @@ jobs:
           }
         ]
         include:
-          - os: macos-latest
-            build_cfg: { "name": "clang", 
+          - os: macos-11
+            build_cfg: { "name": "clang",
                          "flags":
                            '{ "QMAKESPEC": "macx-clang",
                               "CFLAGS": "-Oz",
@@ -95,12 +95,11 @@ jobs:
           doxygen \
           jq \
           libfuntools-dev \
-          libqt5core5a \
           valgrind \
-          qt5-qmake-bin
+          qtbase5-dev
 
     - name: install macOS software
-      if: matrix.os == 'macos-latest'
+      if: matrix.os == 'macos-11'
       run: |
         # Doxygen 1.9.7 is broken with ifdefs again, install 1.9.4 which works.
         wget https://raw.githubusercontent.com/Homebrew/homebrew-core/41828ee36b96e35b63b2a4c8cfc2df2c3728944a/Formula/doxygen.rb
@@ -111,7 +110,7 @@ jobs:
     # Valgrind takes a long time to build, so put in a separate step
     # to make it easy to disable.
     - name: install macOS valgrind
-      if: matrix.os == 'macos-latest'
+      if: matrix.os == 'macos-11'
       run: |
         # 3 cores on CI runners, so use make -j6 for homebrew.
         export HOMEBREW_MAKE_JOBS=6
@@ -129,14 +128,13 @@ jobs:
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.10
       with:
-        key: compilation-${{ matrix.os }}-${{ matrix.build_cfg.QMAKESPEC }}
+        key: compilation-${{ matrix.os }}-${{ matrix.build_cfg.name }}
         max-size: 160M
 
     - name: Execute tests
       run: |
         set -x
         PATH=`echo /opt/qt*/bin`:$PATH
-        export PATH=/usr/lib/qt5/bin:$PATH
         eval $(echo '${{ matrix.build_cfg.flags }}' | jq -r 'to_entries[] | "\(.key)=\"\(.value)\""')
         eval "$EVAL"
         make OUT=outfile.txt -s -f Makefile.configure configure | tee .config
