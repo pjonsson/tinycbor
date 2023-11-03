@@ -68,7 +68,9 @@ PACKAGE = tinycbor-$(VERSION)
 # Check that QMAKE is Qt 5
 ifeq ($(origin QMAKE),file)
   check_qmake = $(strip $(shell $(1) -query QT_VERSION 2>/dev/null | cut -b1))
-  ifneq ($(call check_qmake,$(QMAKE)),5)
+  ifeq ($(call check_qmake,$(QMAKE)),6)
+    QMAKE := qmake
+  else ifneq ($(call check_qmake,$(QMAKE)),5)
     QMAKE := qmake -qt5
     ifneq ($(call check_qmake,$(QMAKE)),5)
       QMAKE := qmake-qt5
